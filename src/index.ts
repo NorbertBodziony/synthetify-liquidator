@@ -17,9 +17,13 @@ const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
 const connection = new Connection(web3.clusterApiUrl('devnet'), 'confirmed')
 const { wallet } = Provider.local()
 const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
+const U64_MAX = new BN('18446744073709551615')
+
+let atRisk = new Set<PublicKey>()
 
 ;(async () => {
-  console.log('Fetching state..')
+  //
+  console.log('Initialization')
   const exchange = await Exchange.build(
     connection,
     Network.LOCAL,
@@ -27,25 +31,25 @@ const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
     exchangeAuthority,
     exchangeProgram
   )
-  console.log('Fetching accounts..')
-  const accounts = await connection.getProgramAccounts(exchangeProgram, {
-    filters: [{ dataSize: 510 }]
-  })
-  console.log('Calculating..')
+
   const state = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
+  console.log('Done')
 
-  await Promise.all(
-    accounts.map(async (user) => {
-      console.log(await isLiquidateable(exchange, assetsList, user))
-    })
-  )
+  // Fetching all accounts with debt over limit
+  atRisk = await getAccountsAtRisk(exchange)
+
+  // Checking fetched accounts
+  for (const account of atRisk) {
+    const { liquidationDeadline } = await exchange.getExchangeAccount(account)
+    if (liquidationDeadline.eq(U64_MAX)) await exchange.checkAccount(account)
+  }
 })()
 
 const parseUser = (account: web3.AccountInfo<Buffer>) =>
   coder.decode<ExchangeAccount>('ExchangeAccount', account.data)
 
-const isLiquidateable = async (
+const isLiquidatable = async (
   exchange: Exchange,
   assetsList: AssetsList,
   user: { pubkey: PublicKey; account: AccountInfo<Buffer> }
@@ -54,4 +58,34 @@ const isLiquidateable = async (
   const userMaxDebt = await calculateUserMaxDebt(exchangeAccount, assetsList)
   const userDebt = await exchange.getUserDebtBalance(user.pubkey)
   return userDebt.gt(userMaxDebt)
+}
+
+const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
+  // Fetching all account associated with the exchange, and size of 510 (ExchangeAccount)
+  console.log('Fetching accounts..')
+  const accounts = await connection.getProgramAccounts(exchangeProgram, {
+    filters: [{ dataSize: 510 }]
+  })
+
+  const state = await exchange.getState()
+  const assetsList = await exchange.getAssetsList(state.assetsList)
+
+  console.log('Calculating..')
+  let atRisk = new Set<PublicKey>()
+
+  await Promise.all(
+    accounts.map(async (user) => {
+      const liquidatable = await isLiquidatable(exchange, assetsList, user)
+      if (!liquidatable) return
+
+      atRisk.add(user.pubkey)
+      const deadline = parseUser(user.account).liquidationDeadline
+
+      // Set a deadline if not alreadys set
+      if (deadline.eq(U64_MAX)) await exchange.checkAccount(user.pubkey)
+    })
+  )
+
+  console.log('Done scanning accounts')
+  return atRisk
 }
