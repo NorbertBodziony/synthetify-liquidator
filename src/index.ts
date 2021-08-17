@@ -12,8 +12,6 @@ import {
 } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
-// const PROGRAM_ID = new PublicKey('2MDpnAdPjS6EJgRiVEGMFK9mgNgxYv2tvUpPCxJrmrJX')
-
 const provider = Provider.local()
 // @ts-expect-error
 const wallet = provider.wallet.payer as Account
@@ -40,6 +38,8 @@ let atRisk = new Set<PublicKey>()
   await createAccountsOnAllCollaterals(assetsList)
 
   console.log('Done')
+
+  return
 
   // const xUSD = assetsList.synthetics[0].assetAddress
   // console.log(xUSD.toString())
@@ -117,17 +117,13 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
 }
 
 const createAccountsOnAllCollaterals = async (assetsList: AssetsList) => {
-  console.log('Checking accounts collateral tokens..')
+  console.log('Assuring accounts on every collateral..')
 
-  const collateralAddresses: PublicKey[] = await assetsList.collaterals
-    .slice(0, assetsList.headAssets)
-    .map(({ collateralAddress }) => collateralAddress)
-
-  for (const address of collateralAddresses) {
-    const token = new Token(connection, address, TOKEN_PROGRAM_ID, wallet)
-    await token.getAccountInfo(wallet.publicKey).catch(() => {
-      console.log(`Creating account on ${address}`)
-      token.createAccount(wallet.publicKey)
+  const accounts = await Promise.all(
+    await assetsList.collaterals.slice(0, assetsList.headAssets).map(({ collateralAddress }) => {
+      const token = new Token(connection, collateralAddress, TOKEN_PROGRAM_ID, wallet)
+      return token.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     })
-  }
+  )
+  return accounts.map(({ address }) => address)
 }
