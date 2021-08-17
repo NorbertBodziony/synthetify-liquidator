@@ -3,7 +3,7 @@ import { Connection, Account, PublicKey } from '@solana/web3.js'
 import { Provider, BN } from '@project-serum/anchor'
 import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
 import { Exchange, ExchangeState } from '@synthetify/sdk/lib/exchange'
-import { ACCURACY } from '@synthetify/sdk/lib/utils'
+import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { isLiquidatable, parseUser, createAccountsOnAllCollaterals } from './utils'
 
@@ -45,24 +45,24 @@ let atRisk = new Set<PublicKey>()
   atRisk = await getAccountsAtRisk(exchange)
 
   // Checking fetched accounts
-  const slot = new BN(await connection.getSlot())
+  while (true) {
+    const slot = new BN(await connection.getSlot())
 
-  for (const exchangeAccount of atRisk) {
-    const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
+    console.log('Starting checking accounts')
+    console.time('checking time')
+    for (const exchangeAccount of atRisk) {
+      const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
 
-    if (slot.lt(liquidationDeadline)) continue
+      if (slot.lt(liquidationDeadline)) continue
 
-    console.log('Liquidating..')
+      console.log('Liquidating..')
 
-    await liquidate(
-      exchange,
-      exchangeAccount,
-      state.assetsList,
-      collateralAccounts,
-      xUSDAddress,
-      wallet
-    )
-    return
+      await liquidate(exchange, exchangeAccount, state, collateralAccounts, xUSDAddress, wallet)
+    }
+
+    console.log('Finished checking..')
+    console.timeEnd('checking time')
+    await sleep(5000)
   }
 })()
 
@@ -108,16 +108,19 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
 const liquidate = async (
   exchange: Exchange,
   account: PublicKey,
-  assetsList: PublicKey,
+  state: ExchangeState,
   collateralAccounts: PublicKey[],
   xUSDAddress: PublicKey,
   wallet: Account
 ) => {
   const exchangeAccount = await exchange.getExchangeAccount(account)
-  const { collaterals, assets } = await exchange.getAssetsList(assetsList)
+  const { collaterals, assets } = await exchange.getAssetsList(state.assetsList)
 
   const liquidatedEntry = exchangeAccount.collaterals[0]
   const liquidatedCollateral = collaterals[liquidatedEntry.index]
+  const decimals = liquidatedCollateral.decimals
+  const price = assets[liquidatedCollateral.assetIndex].price
+  const { liquidationRate } = state
 
   const amount = new BN(1)
 
