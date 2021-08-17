@@ -12,6 +12,8 @@ import {
 } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
+const MINIMUM_XUSD = new BN(10).pow(new BN(8))
+
 const provider = Provider.local()
 // @ts-expect-error
 const wallet = provider.wallet.payer as Account
@@ -35,17 +37,15 @@ let atRisk = new Set<PublicKey>()
   const state = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
-  await createAccountsOnAllCollaterals(assetsList)
+  console.log('Assuring accounts on every collateral..')
+  const collateralAccounts = await createAccountsOnAllCollaterals(assetsList)
 
-  console.log('Done')
+  const xUSDAddress = assetsList.synthetics[0].assetAddress
+  const token = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
+  const xUSDAccount = await token.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
-  return
-
-  // const xUSD = assetsList.synthetics[0].assetAddress
-  // console.log(xUSD.toString())
-
-  // const token = new Token(connection, xUSD, TOKEN_PROGRAM_ID, wallet)
-  // await token.createAccount(wallet.publicKey)
+  if (xUSDAccount.amount.lt(MINIMUM_XUSD))
+    console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
 
   // Fetching all accounts with debt over limit
   atRisk = await getAccountsAtRisk(exchange)
@@ -107,7 +107,7 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
       atRisk.add(user.pubkey)
       const deadline = parseUser(user.account).liquidationDeadline
 
-      // Set a deadline if not alreadys set
+      // Set a deadline if not already set
       if (deadline.eq(U64_MAX)) await exchange.checkAccount(user.pubkey)
     })
   )
@@ -117,8 +117,6 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
 }
 
 const createAccountsOnAllCollaterals = async (assetsList: AssetsList) => {
-  console.log('Assuring accounts on every collateral..')
-
   const accounts = await Promise.all(
     await assetsList.collaterals.slice(0, assetsList.headAssets).map(({ collateralAddress }) => {
       const token = new Token(connection, collateralAddress, TOKEN_PROGRAM_ID, wallet)
