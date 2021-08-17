@@ -1,5 +1,5 @@
 import * as web3 from '@solana/web3.js'
-import { Connection, Keypair, PublicKey, AccountInfo } from '@solana/web3.js'
+import { Connection, Account, PublicKey, AccountInfo } from '@solana/web3.js'
 import { AccountsCoder, Provider, BN } from '@project-serum/anchor'
 import { Idl } from '@project-serum/anchor/dist/idl'
 import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
@@ -10,39 +10,65 @@ import {
   calculateDebt,
   calculateUserMaxDebt
 } from '@synthetify/sdk/lib/utils'
+import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
 // const PROGRAM_ID = new PublicKey('2MDpnAdPjS6EJgRiVEGMFK9mgNgxYv2tvUpPCxJrmrJX')
 
+const provider = Provider.local()
+// @ts-expect-error
+const wallet = provider.wallet.payer as Account
 const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
 const connection = new Connection(web3.clusterApiUrl('devnet'), 'confirmed')
-const { wallet } = Provider.local()
 const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
 const U64_MAX = new BN('18446744073709551615')
 
 let atRisk = new Set<PublicKey>()
 
 ;(async () => {
-  //
   console.log('Initialization')
   const exchange = await Exchange.build(
     connection,
     Network.LOCAL,
-    wallet,
+    provider.wallet,
     exchangeAuthority,
     exchangeProgram
   )
 
   const state = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
+
+  await createAccountsOnAllCollaterals(assetsList)
+
   console.log('Done')
+
+  // const xUSD = assetsList.synthetics[0].assetAddress
+  // console.log(xUSD.toString())
+
+  // const token = new Token(connection, xUSD, TOKEN_PROGRAM_ID, wallet)
+  // await token.createAccount(wallet.publicKey)
 
   // Fetching all accounts with debt over limit
   atRisk = await getAccountsAtRisk(exchange)
 
   // Checking fetched accounts
-  for (const account of atRisk) {
-    const { liquidationDeadline } = await exchange.getExchangeAccount(account)
-    if (liquidationDeadline.eq(U64_MAX)) await exchange.checkAccount(account)
+  for (const exchangeAccount of atRisk) {
+    const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
+    if (liquidationDeadline.eq(U64_MAX)) await exchange.checkAccount(exchangeAccount)
+
+    const slot = new BN(await connection.getSlot())
+
+    if (slot.lt(liquidationDeadline)) return
+
+    // await exchange.liquidate({
+    //   exchangeAccount,
+    //   signer: wallet.publicKey,
+    //   liquidationFund: collateral.liquidationFund,
+    //   amount: maxAmount,
+    //   liquidatorCollateralAccount,
+    //   liquidatorUsdAccount,
+    //   reserveAccount: collateral.reserveAddress,
+    //   signers: [wallet]
+    // })
   }
 })()
 
@@ -88,4 +114,20 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
 
   console.log('Done scanning accounts')
   return atRisk
+}
+
+const createAccountsOnAllCollaterals = async (assetsList: AssetsList) => {
+  console.log('Checking accounts collateral tokens..')
+
+  const collateralAddresses: PublicKey[] = await assetsList.collaterals
+    .slice(0, assetsList.headAssets)
+    .map(({ collateralAddress }) => collateralAddress)
+
+  for (const address of collateralAddresses) {
+    const token = new Token(connection, address, TOKEN_PROGRAM_ID, wallet)
+    await token.getAccountInfo(wallet.publicKey).catch(() => {
+      console.log(`Creating account on ${address}`)
+      token.createAccount(wallet.publicKey)
+    })
+  }
 }
