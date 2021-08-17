@@ -42,24 +42,22 @@ let atRisk = new Set<PublicKey>()
   const collateralAccounts = await createAccountsOnAllCollaterals(wallet, connection, assetsList)
 
   const xUSDAddress = assetsList.synthetics[0].assetAddress
-  const token = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
-  const xUSDAccount = await token.getOrCreateAssociatedAccountInfo(wallet.publicKey)
+  const xUSDToken = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
+  const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
   if (xUSDAccount.amount.lt(MINIMUM_XUSD))
     console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
 
   // Fetching all accounts with debt over limit
   atRisk = await getAccountsAtRisk(exchange)
-  return
 
   // Checking fetched accounts
+  const slot = new BN(await connection.getSlot())
+
   for (const exchangeAccount of atRisk) {
     const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
-    if (liquidationDeadline.eq(U64_MAX)) await exchange.checkAccount(exchangeAccount)
 
-    const slot = new BN(await connection.getSlot())
-
-    if (slot.lt(liquidationDeadline)) return
+    if (slot.lt(liquidationDeadline)) continue
 
     // await exchange.liquidate({
     //   exchangeAccount,
@@ -77,6 +75,8 @@ let atRisk = new Set<PublicKey>()
 const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
   // Fetching all account associated with the exchange, and size of 510 (ExchangeAccount)
   console.log('Fetching accounts..')
+  console.time('fetching time')
+
   const accounts = await connection.getProgramAccounts(exchangeProgram, {
     filters: [{ dataSize: 510 }]
   })
@@ -84,7 +84,9 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
   const state: ExchangeState = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
+  console.timeEnd('fetching time')
   console.log('Calculating..')
+  console.time('calculating time')
   let atRisk = new Set<PublicKey>()
   let markedCounter = 0
 
@@ -94,7 +96,6 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
 
     atRisk.add(user.pubkey)
     const deadline = parseUser(user.account).liquidationDeadline
-    console.log(deadline.eq(U64_MAX))
 
     // Set a deadline if not already set
     if (deadline.eq(U64_MAX)) {
@@ -104,6 +105,8 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
   })
 
   console.log('Done scanning accounts')
+  console.timeEnd('calculating time')
+
   console.log(`Found: ${atRisk.size} accounts at risk, and marked ${markedCounter} new`)
   return atRisk
 }
