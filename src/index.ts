@@ -1,16 +1,9 @@
 import * as web3 from '@solana/web3.js'
-import { Connection, Account, PublicKey, AccountInfo } from '@solana/web3.js'
-import { AccountsCoder, Provider, BN } from '@project-serum/anchor'
-import { Idl } from '@project-serum/anchor/dist/idl'
+import { Connection, Account, PublicKey } from '@solana/web3.js'
+import { Provider, BN } from '@project-serum/anchor'
 import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
-import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
-import { ExchangeAccount, AssetsList, Exchange, ExchangeState } from '@synthetify/sdk/lib/exchange'
-import {
-  calculateUserCollateral,
-  calculateDebt,
-  calculateUserMaxDebt,
-  ACCURACY
-} from '@synthetify/sdk/lib/utils'
+import { Exchange, ExchangeState } from '@synthetify/sdk/lib/exchange'
+import { ACCURACY } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { isLiquidatable, parseUser, createAccountsOnAllCollaterals } from './utils'
 
@@ -59,16 +52,17 @@ let atRisk = new Set<PublicKey>()
 
     if (slot.lt(liquidationDeadline)) continue
 
-    // await exchange.liquidate({
-    //   exchangeAccount,
-    //   signer: wallet.publicKey,
-    //   liquidationFund: collateral.liquidationFund,
-    //   amount: maxAmount,
-    //   liquidatorCollateralAccount,
-    //   liquidatorUsdAccount,
-    //   reserveAccount: collateral.reserveAddress,
-    //   signers: [wallet]
-    // })
+    console.log('Liquidating..')
+
+    await liquidate(
+      exchange,
+      exchangeAccount,
+      state.assetsList,
+      collateralAccounts,
+      xUSDAddress,
+      wallet
+    )
+    return
   }
 })()
 
@@ -109,4 +103,32 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
 
   console.log(`Found: ${atRisk.size} accounts at risk, and marked ${markedCounter} new`)
   return atRisk
+}
+
+const liquidate = async (
+  exchange: Exchange,
+  account: PublicKey,
+  assetsList: PublicKey,
+  collateralAccounts: PublicKey[],
+  xUSDAddress: PublicKey,
+  wallet: Account
+) => {
+  const exchangeAccount = await exchange.getExchangeAccount(account)
+  const { collaterals, assets } = await exchange.getAssetsList(assetsList)
+
+  const liquidatedEntry = exchangeAccount.collaterals[0]
+  const liquidatedCollateral = collaterals[liquidatedEntry.index]
+
+  const amount = new BN(1)
+
+  await exchange.liquidate({
+    exchangeAccount: account,
+    signer: wallet.publicKey,
+    liquidationFund: liquidatedCollateral.liquidationFund,
+    amount,
+    liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
+    liquidatorUsdAccount: xUSDAddress,
+    reserveAccount: liquidatedCollateral.reserveAddress,
+    signers: [wallet]
+  })
 }

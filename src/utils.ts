@@ -1,15 +1,9 @@
 import { Idl } from '@project-serum/anchor/dist/idl'
-import { Connection, Account, PublicKey, AccountInfo, clusterApiUrl } from '@solana/web3.js'
-import { ExchangeAccount, AssetsList, Exchange, ExchangeState } from '@synthetify/sdk/lib/exchange'
+import { Connection, Account, PublicKey, AccountInfo } from '@solana/web3.js'
+import { ExchangeAccount, AssetsList, ExchangeState } from '@synthetify/sdk/lib/exchange'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
-import { AccountsCoder, Provider, BN } from '@project-serum/anchor'
-import {
-  calculateUserCollateral,
-  calculateDebt,
-  calculateUserMaxDebt,
-  ACCURACY
-} from '@synthetify/sdk/lib/utils'
-import { connect } from 'http2'
+import { AccountsCoder, BN } from '@project-serum/anchor'
+import { calculateDebt, calculateUserMaxDebt } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
 const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
