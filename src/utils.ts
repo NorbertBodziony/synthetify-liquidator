@@ -18,9 +18,17 @@ export const isLiquidatable = (
   if (exchangeAccount.debtShares.eq(new BN(0))) return false
 
   const userMaxDebt = calculateUserMaxDebt(exchangeAccount, assetsList)
-  const debt = calculateDebt(assetsList)
-  const userDebt = exchangeAccount.debtShares.mul(debt).div(state.debtShares)
+  const userDebt = calculateUserDebt(state, assetsList, exchangeAccount)
   return userDebt.gt(userMaxDebt)
+}
+
+export const calculateUserDebt = (
+  state: ExchangeState,
+  assetsList: AssetsList,
+  exchangeAccount: ExchangeAccount
+) => {
+  const debt = calculateDebt(assetsList)
+  return exchangeAccount.debtShares.mul(debt).div(state.debtShares)
 }
 
 export const parseUser = (account: AccountInfo<Buffer>) =>

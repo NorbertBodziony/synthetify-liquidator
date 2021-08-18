@@ -4,9 +4,14 @@ import { Provider, BN } from '@project-serum/anchor'
 import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
 import { Exchange, ExchangeState } from '@synthetify/sdk/lib/exchange'
 import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
-import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { isLiquidatable, parseUser, createAccountsOnAllCollaterals, U64_MAX } from './utils'
-
+import { Token, TOKEN_PROGRAM_ID, AccountInfo } from '@solana/spl-token'
+import {
+  calculateUserDebt,
+  isLiquidatable,
+  parseUser,
+  createAccountsOnAllCollaterals,
+  U64_MAX
+} from './utils'
 const MINIMUM_XUSD = new BN(10).pow(new BN(ACCURACY))
 const CHECK_ALL_INTERVAL = 40 * 60 * 1000
 const CHECK_AT_RISK_INTERVAL = 5 * 1000
@@ -38,6 +43,7 @@ let atRisk = new Set<PublicKey>()
   const xUSDAddress = assetsList.synthetics[0].assetAddress
   const xUSDToken = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
   const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
+  console.log(xUSDAccount)
 
   if (xUSDAccount.amount.lt(MINIMUM_XUSD))
     console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
@@ -134,15 +140,27 @@ const liquidate = async (
   wallet: Account
 ) => {
   const exchangeAccount = await exchange.getExchangeAccount(account)
-  const { collaterals, assets } = await exchange.getAssetsList(state.assetsList)
+  const assetsList = await exchange.getAssetsList(state.assetsList)
+  const xUSDToken = new Token(
+    connection,
+    assetsList.synthetics[0].assetAddress,
+    TOKEN_PROGRAM_ID,
+    wallet
+  )
+  const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
   const liquidatedEntry = exchangeAccount.collaterals[0]
-  const liquidatedCollateral = collaterals[liquidatedEntry.index]
+  const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
   const decimals = liquidatedCollateral.decimals
-  const price = assets[liquidatedCollateral.assetIndex].price
+  const price = assetsList.assets[liquidatedCollateral.assetIndex].price
   const { liquidationRate } = state
 
-  const amount = new BN(1)
+  const debt = calculateUserDebt(state, assetsList, exchangeAccount)
+  const maxLiquidate = debt.muln(liquidationRate).divn(100)
+
+  if (xUSDAccount.amount.lt(maxLiquidate)) console.error('Amount of xUSD too low')
+
+  const amount = maxLiquidate.gt(xUSDAccount.amount) ? xUSDAccount.amount : maxLiquidate
 
   await exchange.liquidate({
     exchangeAccount: account,
@@ -150,7 +168,7 @@ const liquidate = async (
     liquidationFund: liquidatedCollateral.liquidationFund,
     amount,
     liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
-    liquidatorUsdAccount: xUSDAddress,
+    liquidatorUsdAccount: xUSDAccount.address,
     reserveAccount: liquidatedCollateral.reserveAddress,
     signers: [wallet]
   })
