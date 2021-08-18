@@ -60,13 +60,21 @@ let atRisk = new Set<PublicKey>()
       console.log('Checking accounts suitable for liquidation..')
       console.time('checking time')
       for (const exchangeAccount of atRisk) {
+        // not needed every check
         const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
 
         if (slot.lt(liquidationDeadline)) continue
 
         console.log('Liquidating..')
 
-        await liquidate(exchange, exchangeAccount, state, collateralAccounts, xUSDAddress, wallet)
+        await liquidate(
+          exchange,
+          exchangeAccount,
+          state,
+          collateralAccounts,
+          xUSDAccount.address,
+          wallet
+        )
       }
       console.log('Finished checking')
       console.timeEnd('checking time')
