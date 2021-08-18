@@ -5,16 +5,17 @@ import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
 import { Exchange, ExchangeState } from '@synthetify/sdk/lib/exchange'
 import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { isLiquidatable, parseUser, createAccountsOnAllCollaterals } from './utils'
+import { isLiquidatable, parseUser, createAccountsOnAllCollaterals, U64_MAX } from './utils'
 
 const MINIMUM_XUSD = new BN(10).pow(new BN(ACCURACY))
+const CHECK_ALL_INTERVAL = 40 * 60 * 1000
+const CHECK_AT_RISK_INTERVAL = 5 * 1000
 
 const provider = Provider.local()
 // @ts-expect-error
 const wallet = provider.wallet.payer as Account
 const connection = new Connection(web3.clusterApiUrl('devnet'), 'confirmed')
 const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
-const U64_MAX = new BN('18446744073709551615')
 
 let atRisk = new Set<PublicKey>()
 
@@ -41,28 +42,38 @@ let atRisk = new Set<PublicKey>()
   if (xUSDAccount.amount.lt(MINIMUM_XUSD))
     console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
 
-  // Fetching all accounts with debt over limit
-  atRisk = await getAccountsAtRisk(exchange)
+  // Main loop
+  let nextFullCheck = 0
+  let nextCheck = 0
 
-  // Checking fetched accounts
   while (true) {
-    const slot = new BN(await connection.getSlot())
-
-    console.log('Starting checking accounts')
-    console.time('checking time')
-    for (const exchangeAccount of atRisk) {
-      const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
-
-      if (slot.lt(liquidationDeadline)) continue
-
-      console.log('Liquidating..')
-
-      await liquidate(exchange, exchangeAccount, state, collateralAccounts, xUSDAddress, wallet)
+    if (Date.now() > nextFullCheck + CHECK_ALL_INTERVAL) {
+      nextFullCheck = Date.now() + CHECK_ALL_INTERVAL
+      // Fetching all accounts with debt over limit
+      atRisk = await getAccountsAtRisk(exchange)
     }
 
-    console.log('Finished checking..')
-    console.timeEnd('checking time')
-    await sleep(5000)
+    if (Date.now() > nextCheck + CHECK_AT_RISK_INTERVAL) {
+      nextCheck = Date.now() + CHECK_AT_RISK_INTERVAL
+      const slot = new BN(await connection.getSlot())
+
+      console.log('Checking accounts suitable for liquidation..')
+      console.time('checking time')
+      for (const exchangeAccount of atRisk) {
+        const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
+
+        if (slot.lt(liquidationDeadline)) continue
+
+        console.log('Liquidating..')
+
+        await liquidate(exchange, exchangeAccount, state, collateralAccounts, xUSDAddress, wallet)
+      }
+      console.log('Finished checking')
+      console.timeEnd('checking time')
+    }
+
+    const closerCheck = nextCheck > nextFullCheck ? nextCheck : nextFullCheck
+    await sleep(closerCheck - Date.now() + 1)
   }
 })()
 
@@ -94,6 +105,7 @@ const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
     // Set a deadline if not already set
     if (deadline.eq(U64_MAX)) {
       await exchange.checkAccount(user.pubkey)
+
       markedCounter++
     }
   })

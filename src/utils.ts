@@ -7,6 +7,7 @@ import { calculateDebt, calculateUserMaxDebt } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
 const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
+export const U64_MAX = new BN('18446744073709551615')
 
 export const isLiquidatable = (
   state: ExchangeState,
