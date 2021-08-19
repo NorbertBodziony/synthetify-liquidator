@@ -47,3 +47,8 @@ export const createAccountsOnAllCollaterals = async (
   )
   return accounts.map(({ address }) => address)
 }
+
+export interface UserWithDeadline {
+  address: PublicKey
+  deadline: BN
+}

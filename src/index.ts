@@ -10,7 +10,8 @@ import {
   isLiquidatable,
   parseUser,
   createAccountsOnAllCollaterals,
-  U64_MAX
+  U64_MAX,
+  UserWithDeadline
 } from './utils'
 const MINIMUM_XUSD = new BN(10).pow(new BN(ACCURACY))
 const CHECK_ALL_INTERVAL = 40 * 60 * 1000
@@ -21,8 +22,6 @@ const provider = Provider.local()
 const wallet = provider.wallet.payer as Account
 const connection = new Connection(web3.clusterApiUrl('devnet'), 'confirmed')
 const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
-
-let atRisk = new Set<PublicKey>()
 
 ;(async () => {
   console.log('Initialization')
@@ -43,7 +42,6 @@ let atRisk = new Set<PublicKey>()
   const xUSDAddress = assetsList.synthetics[0].assetAddress
   const xUSDToken = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
   const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
-  console.log(xUSDAccount)
 
   if (xUSDAccount.amount.lt(MINIMUM_XUSD))
     console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
@@ -51,6 +49,7 @@ let atRisk = new Set<PublicKey>()
   // Main loop
   let nextFullCheck = 0
   let nextCheck = 0
+  let atRisk: UserWithDeadline[] = []
 
   while (true) {
     if (Date.now() > nextFullCheck + CHECK_ALL_INTERVAL) {
@@ -65,23 +64,16 @@ let atRisk = new Set<PublicKey>()
 
       console.log('Checking accounts suitable for liquidation..')
       console.time('checking time')
-      for (const exchangeAccount of atRisk) {
-        // not needed every check
-        const { liquidationDeadline } = await exchange.getExchangeAccount(exchangeAccount)
-
-        if (slot.lt(liquidationDeadline)) continue
+      while (atRisk.length) {
+        // Users are sorted so we can stop checking if the deadline is in the future
+        const user = atRisk[0]
+        if (slot.lt(user.deadline)) break
 
         console.log('Liquidating..')
 
-        await liquidate(
-          exchange,
-          exchangeAccount,
-          state,
-          collateralAccounts,
-          xUSDAccount.address,
-          wallet
-        )
+        await liquidate(exchange, user.address, state, collateralAccounts, wallet)
       }
+      atRisk.shift()
       console.log('Finished checking')
       console.timeEnd('checking time')
     }
@@ -91,43 +83,47 @@ let atRisk = new Set<PublicKey>()
   }
 })()
 
-const getAccountsAtRisk = async (exchange): Promise<Set<PublicKey>> => {
+const getAccountsAtRisk = async (exchange): Promise<UserWithDeadline[]> => {
   // Fetching all account associated with the exchange, and size of 510 (ExchangeAccount)
   console.log('Fetching accounts..')
   console.time('fetching time')
 
   const accounts = await connection.getProgramAccounts(exchangeProgram, {
-    filters: [{ dataSize: 510 }]
+    filters: [{ dataSize: 1421 }]
   })
 
   const state: ExchangeState = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
   console.timeEnd('fetching time')
-  console.log('Calculating..')
+  console.log(`Calculating debt for (${accounts.length}) accounts..`)
   console.time('calculating time')
-  let atRisk = new Set<PublicKey>()
+  let atRisk: UserWithDeadline[] = []
   let markedCounter = 0
 
   accounts.forEach(async (user) => {
     const liquidatable = isLiquidatable(state, assetsList, user)
     if (!liquidatable) return
 
-    atRisk.add(user.pubkey)
     const deadline = parseUser(user.account).liquidationDeadline
 
     // Set a deadline if not already set
     if (deadline.eq(U64_MAX)) {
       await exchange.checkAccount(user.pubkey)
+      const { liquidationDeadline } = await exchange.getExchangeAccount(user.pubkey)
+
+      atRisk.push({ address: user.pubkey, deadline: liquidationDeadline })
 
       markedCounter++
-    }
+    } else atRisk.push({ address: user.pubkey, deadline })
   })
+
+  atRisk = atRisk.sort((a, b) => a.deadline.cmp(b.deadline))
 
   console.log('Done scanning accounts')
   console.timeEnd('calculating time')
 
-  console.log(`Found: ${atRisk.size} accounts at risk, and marked ${markedCounter} new`)
+  console.log(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`)
   return atRisk
 }
 
@@ -136,7 +132,6 @@ const liquidate = async (
   account: PublicKey,
   state: ExchangeState,
   collateralAccounts: PublicKey[],
-  xUSDAddress: PublicKey,
   wallet: Account
 ) => {
   const exchangeAccount = await exchange.getExchangeAccount(account)
@@ -151,12 +146,10 @@ const liquidate = async (
 
   const liquidatedEntry = exchangeAccount.collaterals[0]
   const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
-  const decimals = liquidatedCollateral.decimals
-  const price = assetsList.assets[liquidatedCollateral.assetIndex].price
   const { liquidationRate } = state
 
   const debt = calculateUserDebt(state, assetsList, exchangeAccount)
-  const maxLiquidate = debt.muln(liquidationRate).divn(100)
+  const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
 
   if (xUSDAccount.amount.lt(maxLiquidate)) console.error('Amount of xUSD too low')
 
