@@ -1,6 +1,6 @@
 import { Idl } from '@project-serum/anchor/dist/idl'
 import { Connection, Account, PublicKey, AccountInfo } from '@solana/web3.js'
-import { ExchangeAccount, AssetsList, ExchangeState } from '@synthetify/sdk/lib/exchange'
+import { ExchangeAccount, AssetsList, ExchangeState, Exchange } from '@synthetify/sdk/lib/exchange'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountsCoder, BN } from '@project-serum/anchor'
 import { calculateDebt, calculateUserMaxDebt } from '@synthetify/sdk/lib/utils'
@@ -46,6 +46,95 @@ export const createAccountsOnAllCollaterals = async (
     })
   )
   return accounts.map(({ address }) => address)
+}
+
+export const liquidate = async (
+  connection: Connection,
+  exchange: Exchange,
+  account: PublicKey,
+  state: ExchangeState,
+  collateralAccounts: PublicKey[],
+  wallet: Account
+) => {
+  const exchangeAccount = await exchange.getExchangeAccount(account)
+  const assetsList = await exchange.getAssetsList(state.assetsList)
+  const xUSDToken = new Token(
+    connection,
+    assetsList.synthetics[0].assetAddress,
+    TOKEN_PROGRAM_ID,
+    wallet
+  )
+  const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
+
+  const liquidatedEntry = exchangeAccount.collaterals[0]
+  const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
+  const { liquidationRate } = state
+
+  const debt = calculateUserDebt(state, assetsList, exchangeAccount)
+  const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
+
+  if (xUSDAccount.amount.lt(maxLiquidate)) console.error('Amount of xUSD too low')
+
+  const amount = maxLiquidate.gt(xUSDAccount.amount) ? xUSDAccount.amount : maxLiquidate
+
+  await exchange.liquidate({
+    exchangeAccount: account,
+    signer: wallet.publicKey,
+    liquidationFund: liquidatedCollateral.liquidationFund,
+    amount,
+    liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
+    liquidatorUsdAccount: xUSDAccount.address,
+    reserveAccount: liquidatedCollateral.reserveAddress,
+    signers: [wallet]
+  })
+}
+
+export const getAccountsAtRisk = async (
+  connection: Connection,
+  exchange: Exchange,
+  exchangeProgram: PublicKey
+): Promise<UserWithDeadline[]> => {
+  // Fetching all account associated with the exchange, and size of 510 (ExchangeAccount)
+  console.log('Fetching accounts..')
+  console.time('fetching time')
+
+  const accounts = await connection.getProgramAccounts(exchangeProgram, {
+    filters: [{ dataSize: 1421 }]
+  })
+
+  const state: ExchangeState = await exchange.getState()
+  const assetsList = await exchange.getAssetsList(state.assetsList)
+
+  console.timeEnd('fetching time')
+  console.log(`Calculating debt for (${accounts.length}) accounts..`)
+  console.time('calculating time')
+  let atRisk: UserWithDeadline[] = []
+  let markedCounter = 0
+
+  accounts.forEach(async (user) => {
+    const liquidatable = isLiquidatable(state, assetsList, user)
+    if (!liquidatable) return
+
+    const deadline = parseUser(user.account).liquidationDeadline
+
+    // Set a deadline if not already set
+    if (deadline.eq(U64_MAX)) {
+      await exchange.checkAccount(user.pubkey)
+      const { liquidationDeadline } = await exchange.getExchangeAccount(user.pubkey)
+
+      atRisk.push({ address: user.pubkey, deadline: liquidationDeadline })
+
+      markedCounter++
+    } else atRisk.push({ address: user.pubkey, deadline })
+  })
+
+  atRisk = atRisk.sort((a, b) => a.deadline.cmp(b.deadline))
+
+  console.log('Done scanning accounts')
+  console.timeEnd('calculating time')
+
+  console.log(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`)
+  return atRisk
 }
 
 export interface UserWithDeadline {
