@@ -13,7 +13,6 @@ export const isLiquidatable = (
   state: ExchangeState,
   assetsList: AssetsList,
   exchangeAccount: ExchangeAccount
-  // user: { pubkey: PublicKey; account: AccountInfo<Buffer> }
 ) => {
   if (exchangeAccount.debtShares.eq(new BN(0))) return false
 
@@ -40,7 +39,7 @@ export const createAccountsOnAllCollaterals = async (
   assetsList: AssetsList
 ) => {
   const accounts = await Promise.all(
-    await assetsList.collaterals.slice(0, assetsList.headAssets).map(({ collateralAddress }) => {
+    await assetsList.collaterals.map(({ collateralAddress }) => {
       const token = new Token(connection, collateralAddress, TOKEN_PROGRAM_ID, wallet)
       return token.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     })
