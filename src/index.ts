@@ -1,5 +1,4 @@
-import * as web3 from '@solana/web3.js'
-import { Connection, Account } from '@solana/web3.js'
+import { Connection, Account, clusterApiUrl } from '@solana/web3.js'
 import { Provider, BN } from '@project-serum/anchor'
 import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
 import { Exchange } from '@synthetify/sdk/lib/exchange'
@@ -14,18 +13,19 @@ import {
 const MINIMUM_XUSD = new BN(10).pow(new BN(ACCURACY))
 const CHECK_ALL_INTERVAL = 40 * 60 * 1000
 const CHECK_AT_RISK_INTERVAL = 5 * 1000
+const NETWORK = Network.DEV
 
 const provider = Provider.local()
 // @ts-expect-error
 const wallet = provider.wallet.payer as Account
-const connection = new Connection(web3.clusterApiUrl('devnet'), 'confirmed')
+const connection = new Connection(clusterApiUrl('devnet'), 'confirmed')
 const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
 
 const main = async () => {
   console.log('Initialization')
   const exchange = await Exchange.build(
     connection,
-    Network.LOCAL,
+    NETWORK,
     provider.wallet,
     exchangeAuthority,
     exchangeProgram
@@ -60,18 +60,16 @@ const main = async () => {
       nextCheck = Date.now() + CHECK_AT_RISK_INTERVAL
       const slot = new BN(await connection.getSlot())
 
-      console.log('Checking accounts suitable for liquidation..')
+      console.log(`Checking accounts suitable for liquidation (${atRisk.length})..`)
       console.time('checking time')
-      while (atRisk.length) {
-        // Users are sorted so we can stop checking if the deadline is in the future
-        const user = atRisk[0]
-        if (slot.lt(user.deadline)) break
 
-        console.log('Liquidating..')
+      for (const account of atRisk) {
+        // Users are sorted so we can stop checking if deadline is in the future
+        if (slot.lt(account.deadline)) break
 
-        await liquidate(connection, exchange, user.address, state, collateralAccounts, wallet)
+        await liquidate(connection, exchange, account.address, state, collateralAccounts, wallet)
       }
-      atRisk.shift()
+
       console.log('Finished checking')
       console.timeEnd('checking time')
     }

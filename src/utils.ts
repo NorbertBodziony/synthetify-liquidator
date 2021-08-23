@@ -12,9 +12,9 @@ export const U64_MAX = new BN('18446744073709551615')
 export const isLiquidatable = (
   state: ExchangeState,
   assetsList: AssetsList,
-  user: { pubkey: PublicKey; account: AccountInfo<Buffer> }
+  exchangeAccount: ExchangeAccount
+  // user: { pubkey: PublicKey; account: AccountInfo<Buffer> }
 ) => {
-  const exchangeAccount = parseUser(user.account)
   if (exchangeAccount.debtShares.eq(new BN(0))) return false
 
   const userMaxDebt = calculateUserMaxDebt(exchangeAccount, assetsList)
@@ -66,16 +66,22 @@ export const liquidate = async (
   )
   const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
+  if (!isLiquidatable(state, assetsList, exchangeAccount)) return
+
+  console.log('Liquidating..')
+
   const liquidatedEntry = exchangeAccount.collaterals[0]
   const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
   const { liquidationRate } = state
 
   const debt = calculateUserDebt(state, assetsList, exchangeAccount)
   const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
+  // Taking .1% for debt change
+  const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
 
-  if (xUSDAccount.amount.lt(maxLiquidate)) console.error('Amount of xUSD too low')
+  if (xUSDAccount.amount.lt(amountNeeded)) console.error('Amount of xUSD too low')
 
-  const amount = maxLiquidate.gt(xUSDAccount.amount) ? xUSDAccount.amount : maxLiquidate
+  const amount = amountNeeded.gt(xUSDAccount.amount) ? xUSDAccount.amount : U64_MAX
 
   await exchange.liquidate({
     exchangeAccount: account,
@@ -112,7 +118,7 @@ export const getAccountsAtRisk = async (
   let markedCounter = 0
 
   accounts.forEach(async (user) => {
-    const liquidatable = isLiquidatable(state, assetsList, user)
+    const liquidatable = isLiquidatable(state, assetsList, parseUser(user.account))
     if (!liquidatable) return
 
     const deadline = parseUser(user.account).liquidationDeadline
