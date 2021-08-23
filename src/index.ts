@@ -10,7 +10,7 @@ import {
   createAccountsOnAllCollaterals,
   UserWithDeadline
 } from './utils'
-import * as Prices from './prices'
+import { Prices } from './prices'
 
 const XUSD_BEFORE_WARNING = new BN(100).pow(new BN(ACCURACY))
 const CHECK_ALL_INTERVAL = 40 * 60 * 1000
@@ -36,7 +36,7 @@ const main = async () => {
   const state = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
-  await Prices.prices(connection, assetsList)
+  await new Prices(connection, assetsList)
 
   console.log('Assuring accounts on every collateral..')
   const collateralAccounts = await createAccountsOnAllCollaterals(wallet, connection, assetsList)
