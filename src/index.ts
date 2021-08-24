@@ -8,7 +8,8 @@ import {
   liquidate,
   getAccountsAtRisk,
   createAccountsOnAllCollaterals,
-  UserWithDeadline
+  UserWithDeadline,
+  parseUser
 } from './utils'
 import { Prices } from './prices'
 
@@ -58,7 +59,15 @@ const main = async () => {
     if (Date.now() > nextFullCheck + CHECK_ALL_INTERVAL) {
       nextFullCheck = Date.now() + CHECK_ALL_INTERVAL
       // Fetching all accounts with debt over limit
-      atRisk = atRisk.concat(await getAccountsAtRisk(connection, exchange, exchangeProgram))
+      const newAccounts = await getAccountsAtRisk(connection, exchange, exchangeProgram)
+
+      newAccounts.forEach(({ address, data }) =>
+        connection.onAccountChange(address, (fetched) => {
+          data = parseUser(fetched)
+        })
+      )
+
+      atRisk = atRisk.concat(newAccounts)
     }
 
     if (Date.now() > nextCheck + CHECK_AT_RISK_INTERVAL) {
@@ -70,7 +79,7 @@ const main = async () => {
 
       for (const account of atRisk) {
         // Users are sorted so we can stop checking if deadline is in the future
-        if (slot.lt(account.deadline)) break
+        if (slot.lt(account.data.liquidationDeadline)) break
 
         await liquidate(connection, exchange, account.address, state, collateralAccounts, wallet)
       }

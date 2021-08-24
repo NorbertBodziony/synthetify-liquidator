@@ -63,7 +63,7 @@ export const liquidate = async (
     TOKEN_PROGRAM_ID,
     wallet
   )
-  const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
+  const xUSDAccount = await xUSDToken.getAccountInfo(wallet.publicKey)
 
   if (!isLiquidatable(state, assetsList, exchangeAccount)) return
 
@@ -110,6 +110,8 @@ export const getAccountsAtRisk = async (
   const state: ExchangeState = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
+  console.log('aa', assetsList.collaterals[0].collateralAddress.toBase58())
+
   console.timeEnd('fetching time')
   console.log(`Calculating debt for (${accounts.length}) accounts..`)
   console.time('calculating time')
@@ -120,20 +122,20 @@ export const getAccountsAtRisk = async (
     const liquidatable = isLiquidatable(state, assetsList, parseUser(user.account))
     if (!liquidatable) return
 
-    const deadline = parseUser(user.account).liquidationDeadline
+    const exchangeAccount = parseUser(user.account)
 
     // Set a deadline if not already set
-    if (deadline.eq(U64_MAX)) {
+    if (exchangeAccount.liquidationDeadline.eq(U64_MAX)) {
       await exchange.checkAccount(user.pubkey)
-      const { liquidationDeadline } = await exchange.getExchangeAccount(user.pubkey)
+      const exchangeAccount = await exchange.getExchangeAccount(user.pubkey)
 
-      atRisk.push({ address: user.pubkey, deadline: liquidationDeadline })
+      atRisk.push({ address: user.pubkey, data: exchangeAccount })
 
       markedCounter++
-    } else atRisk.push({ address: user.pubkey, deadline })
+    } else atRisk.push({ address: user.pubkey, data: exchangeAccount })
   })
 
-  atRisk = atRisk.sort((a, b) => a.deadline.cmp(b.deadline))
+  atRisk = atRisk.sort((a, b) => a.data.liquidationDeadline.cmp(b.data.liquidationDeadline))
 
   console.log('Done scanning accounts')
   console.timeEnd('calculating time')
@@ -144,5 +146,5 @@ export const getAccountsAtRisk = async (
 
 export interface UserWithDeadline {
   address: PublicKey
-  deadline: BN
+  data: ExchangeAccount
 }
