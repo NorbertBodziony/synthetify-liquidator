@@ -104,7 +104,7 @@ export const getAccountsAtRisk = async (
   console.time('fetching time')
 
   const accounts = await connection.getProgramAccounts(exchangeProgram, {
-    filters: [{ dataSize: 1421 }]
+    filters: [{ dataSize: 1420 }]
   })
 
   const state: ExchangeState = await exchange.getState()
