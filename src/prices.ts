@@ -8,19 +8,33 @@ export class Prices {
   private connection: Connection
   private oracles: PublicKey[]
   private scale = ORACLE_OFFSET
+  public initializationPromise: Promise<void[]>
   public prices: BN[]
 
   constructor(connection: Connection, assetsList: AssetsList) {
     this.connection = connection
     this.oracles = assetsList.assets.map(({ feedAddress }) => feedAddress)
     this.prices = [...this.oracles.map(() => new BN(0))]
-    this.prices[0] = new BN(1)
 
+    // Initialize prices (for assets with constant prices)
+    this.initializationPromise = Promise.all(
+      this.oracles.map(async (feedAddress, index) => {
+        if (index === 0) {
+          this.prices[index] = new BN(10 ** this.scale)
+          return
+        }
+
+        const { data } = await this.connection.getAccountInfo(feedAddress)
+        const { price } = parsePriceData(data)
+        this.prices[index] = new BN(price * 10 ** this.scale)
+      })
+    )
+
+    // Subscribe to oracle updates
     this.oracles.forEach((feedAddress, index) => {
-      if (index === 0) return
       connection.onAccountChange(feedAddress, (accountInfo) => {
         const { price } = parsePriceData(accountInfo.data)
-        this.prices[index] = new BN(price)
+        this.prices[index] = new BN(price * 10 ** this.scale)
       })
     })
   }

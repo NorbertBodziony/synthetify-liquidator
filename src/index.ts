@@ -36,7 +36,8 @@ const main = async () => {
   const state = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
-  await new Prices(connection, assetsList)
+  const prices = await new Prices(connection, assetsList)
+  await prices.initializationPromise
 
   console.log('Assuring accounts on every collateral..')
   const collateralAccounts = await createAccountsOnAllCollaterals(wallet, connection, assetsList)
