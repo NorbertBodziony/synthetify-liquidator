@@ -90,7 +90,8 @@ const main = async () => {
           assetsList,
           state,
           collateralAccounts,
-          wallet
+          wallet,
+          xUSDAccount.amount
         )
       }
 

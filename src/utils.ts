@@ -55,43 +55,45 @@ export const liquidate = async (
   assetsList: AssetsList,
   state: ExchangeState,
   collateralAccounts: PublicKey[],
-  wallet: Account
+  wallet: Account,
+  xUSDBalance: BN
 ) => {
-  const xUSDToken = new Token(
-    connection,
-    assetsList.synthetics[0].assetAddress,
-    TOKEN_PROGRAM_ID,
-    wallet
-  )
+  // const xUSDToken = new Token(
+  //   connection,
+  //   assetsList.synthetics[0].assetAddress,
+  //   TOKEN_PROGRAM_ID,
+  //   wallet
+  // )
   // const xUSDAccount = await xUSDToken.getAccountInfo(wallet.publicKey)
+  console.log('Liquidating???')
 
-  // if (!isLiquidatable(state, assetsList, exchangeAccount.account)) return
+  if (!isLiquidatable(state, assetsList, exchangeAccount.account)) return
 
-  // console.log('Liquidating..')
+  console.log('Liquidating..')
 
-  // const liquidatedEntry = exchangeAccount.account.collaterals[0]
-  // const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
-  // const { liquidationRate } = state
+  const liquidatedEntry = exchangeAccount.account.collaterals[0]
+  const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
+  const { liquidationRate } = state
 
-  // const debt = calculateUserDebt(state, assetsList, exchangeAccount.account)
-  // const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
-  // // Taking .1% for debt change
-  // const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
+  const debt = calculateUserDebt(state, assetsList, exchangeAccount.account)
+  const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
+  // Taking .1% for debt change
+  const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
 
-  // if (xUSDAccount.amount.lt(amountNeeded)) console.error('Amount of xUSD too low')
+  if (xUSDBalance.lt(amountNeeded)) console.error('Amount of xUSD too low')
 
-  // const amount = amountNeeded.gt(xUSDAccount.amount) ? xUSDAccount.amount : U64_MAX
+  const amount = amountNeeded.gt(xUSDBalance) ? xUSDBalance : U64_MAX
 
-  // await exchange.liquidate({
-  //   exchangeAccount: exchangeAccount.address,
-  //   signer: wallet.publicKey,
-  //   liquidationFund: liquidatedCollateral.liquidationFund,
-  //   amount,
-  //   liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
-  //   liquidatorUsdAccount: xUSDAccount.address,
-  //   reserveAccount: liquidatedCollateral.reserveAddress,
-  //   signers: [wallet]
-  // })
+  await exchange.liquidate({
+    exchangeAccount: exchangeAccount.address,
+    signer: wallet.publicKey,
+    liquidationFund: liquidatedCollateral.liquidationFund,
+    amount,
+    liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
+    liquidatorUsdAccount: assetsList.synthetics[0].assetAddress,
+    reserveAccount: liquidatedCollateral.reserveAddress,
+    signers: [wallet]
+  })
 }
 
 export const getAccountsAtRisk = async (
@@ -118,22 +120,19 @@ export const getAccountsAtRisk = async (
 
   for (const user of accounts) {
     const liquidatable = isLiquidatable(state, assetsList, parseUser(user.account))
-    // if (!liquidatable) return
+    if (!liquidatable) continue
 
     const exchangeAccount = parseUser(user.account)
-    atRisk.push({ address: user.pubkey, data: exchangeAccount }) /// DELETE ME
 
-    // // Set a deadline if not already set
-    // if (exchangeAccount.liquidationDeadline.eq(U64_MAX)) {
-    //   await exchange.checkAccount(user.pubkey)
-    //   const exchangeAccount = await exchange.getExchangeAccount(user.pubkey)
+    // Set a deadline if not already set
+    if (exchangeAccount.liquidationDeadline.eq(U64_MAX)) {
+      await exchange.checkAccount(user.pubkey)
+      const exchangeAccount = await exchange.getExchangeAccount(user.pubkey)
 
-    //   atRisk.push({ address: user.pubkey, data: exchangeAccount })
+      atRisk.push({ address: user.pubkey, data: exchangeAccount })
 
-    //   console.log('here')
-
-    //   markedCounter++
-    // } else atRisk.push({ address: user.pubkey, data: exchangeAccount })
+      markedCounter++
+    } else atRisk.push({ address: user.pubkey, data: exchangeAccount })
   }
 
   atRisk = atRisk.sort((a, b) => a.data.liquidationDeadline.cmp(b.data.liquidationDeadline))
