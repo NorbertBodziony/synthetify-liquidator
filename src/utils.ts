@@ -110,30 +110,31 @@ export const getAccountsAtRisk = async (
   const state: ExchangeState = await exchange.getState()
   const assetsList = await exchange.getAssetsList(state.assetsList)
 
-  console.log('aa', assetsList.collaterals[0].collateralAddress.toBase58())
-
   console.timeEnd('fetching time')
   console.log(`Calculating debt for (${accounts.length}) accounts..`)
   console.time('calculating time')
   let atRisk: UserWithDeadline[] = []
   let markedCounter = 0
 
-  accounts.forEach(async (user) => {
+  for (const user of accounts) {
     const liquidatable = isLiquidatable(state, assetsList, parseUser(user.account))
-    if (!liquidatable) return
+    // if (!liquidatable) return
 
     const exchangeAccount = parseUser(user.account)
+    atRisk.push({ address: user.pubkey, data: exchangeAccount }) /// DELETE ME
 
-    // Set a deadline if not already set
-    if (exchangeAccount.liquidationDeadline.eq(U64_MAX)) {
-      await exchange.checkAccount(user.pubkey)
-      const exchangeAccount = await exchange.getExchangeAccount(user.pubkey)
+    // // Set a deadline if not already set
+    // if (exchangeAccount.liquidationDeadline.eq(U64_MAX)) {
+    //   await exchange.checkAccount(user.pubkey)
+    //   const exchangeAccount = await exchange.getExchangeAccount(user.pubkey)
 
-      atRisk.push({ address: user.pubkey, data: exchangeAccount })
+    //   atRisk.push({ address: user.pubkey, data: exchangeAccount })
 
-      markedCounter++
-    } else atRisk.push({ address: user.pubkey, data: exchangeAccount })
-  })
+    //   console.log('here')
+
+    //   markedCounter++
+    // } else atRisk.push({ address: user.pubkey, data: exchangeAccount })
+  }
 
   atRisk = atRisk.sort((a, b) => a.data.liquidationDeadline.cmp(b.data.liquidationDeadline))
 
