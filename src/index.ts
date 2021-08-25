@@ -4,13 +4,7 @@ import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
 import { Exchange, ExchangeAccount } from '@synthetify/sdk/lib/exchange'
 import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import {
-  liquidate,
-  getAccountsAtRisk,
-  createAccountsOnAllCollaterals,
-  UserWithDeadline,
-  parseUser
-} from './utils'
+import { liquidate, getAccountsAtRisk, createAccountsOnAllCollaterals } from './utils'
 import { Prices } from './prices'
 import { Synchronizer } from './synchronizer'
 
@@ -54,7 +48,7 @@ const main = async () => {
   // Main loop
   let nextFullCheck = 0
   let nextCheck = 0
-  let atRisk: UserWithDeadline[] = []
+  let atRisk: Synchronizer<ExchangeAccount>[] = []
 
   while (true) {
     if (Date.now() > nextFullCheck + CHECK_ALL_INTERVAL) {
@@ -62,32 +56,18 @@ const main = async () => {
       // Fetching all accounts with debt over limit
       const newAccounts = await getAccountsAtRisk(connection, exchange, exchangeProgram)
 
-      let selected = newAccounts.find(({ data }) =>
-        data.owner.equals(new PublicKey('Dqt2SeQZ2uiw1PUVgKRr5PErBu5AjxD1Ut43yxMSwRAM'))
-      )
-      console.log(newAccounts[0].data.head)
+      // let selected = newAccounts.find(({ data }) =>
+      //   data.owner.equals(new PublicKey('Dqt2SeQZ2uiw1PUVgKRr5PErBu5AjxD1Ut43yxMSwRAM'))
+      // )
 
-      if (!selected) {
-        console.error('NO SELECTED')
-        return
-      }
-
-      const user = new Synchronizer<ExchangeAccount>(
-        connection,
-        selected.address,
-        'ExchangeAccount'
-      )
-
-      for (;;) await sleep(1000)
-      return
-
-      newAccounts.forEach((a) =>
-        connection.onAccountChange(a.address, (fetched) => {
-          a.data = parseUser(fetched)
-        })
-      )
-      atRisk = atRisk.concat(newAccounts)
-      atRisk = newAccounts
+      atRisk = newAccounts.map((fresh) => {
+        return new Synchronizer<ExchangeAccount>(
+          connection,
+          fresh.address,
+          'ExchangeAccount',
+          fresh.data
+        )
+      })
     }
 
     if (Date.now() > nextCheck + CHECK_AT_RISK_INTERVAL) {
@@ -97,13 +77,21 @@ const main = async () => {
       console.log(`Checking accounts suitable for liquidation (${atRisk.length})..`)
       console.time('checking time')
 
-      for (const account of atRisk) {
+      for (const exchangeAccount of atRisk) {
         // Users are sorted so we can stop checking if deadline is in the future
-        console.log(account.data.collaterals[0].amount.toString())
+        // console.log(exchangeAccount.account.collaterals[0].amount.toString())
 
-        if (slot.lt(account.data.liquidationDeadline)) break
+        if (slot.lt(exchangeAccount.account.liquidationDeadline)) break
 
-        await liquidate(connection, exchange, account.address, state, collateralAccounts, wallet)
+        await liquidate(
+          connection,
+          exchange,
+          exchangeAccount,
+          assetsList,
+          state,
+          collateralAccounts,
+          wallet
+        )
       }
 
       console.log('Finished checking')

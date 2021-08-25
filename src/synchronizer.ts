@@ -2,14 +2,13 @@ import { AccountsCoder } from '@project-serum/anchor'
 import { Idl } from '@project-serum/anchor/dist/idl'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountInfo, Connection, PublicKey } from '@solana/web3.js'
-import { ExchangeAccount } from '@synthetify/sdk/lib/exchange'
 
 const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
 
 export class Synchronizer<T> {
-  private address: PublicKey
   private connection: Connection
   private nameInIDL: string
+  public address: PublicKey
   public account: T | undefined
 
   constructor(connection: Connection, address: PublicKey, nameInIDL: string, initialAccount?: T) {

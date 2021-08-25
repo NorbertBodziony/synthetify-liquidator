@@ -5,6 +5,7 @@ import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountsCoder, BN } from '@project-serum/anchor'
 import { calculateDebt, calculateUserMaxDebt } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { Synchronizer } from './synchronizer'
 
 const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
 export const U64_MAX = new BN('18446744073709551615')
@@ -50,55 +51,54 @@ export const createAccountsOnAllCollaterals = async (
 export const liquidate = async (
   connection: Connection,
   exchange: Exchange,
-  account: PublicKey,
+  exchangeAccount: Synchronizer<ExchangeAccount>,
+  assetsList: AssetsList,
   state: ExchangeState,
   collateralAccounts: PublicKey[],
   wallet: Account
 ) => {
-  const exchangeAccount = await exchange.getExchangeAccount(account)
-  const assetsList = await exchange.getAssetsList(state.assetsList)
   const xUSDToken = new Token(
     connection,
     assetsList.synthetics[0].assetAddress,
     TOKEN_PROGRAM_ID,
     wallet
   )
-  const xUSDAccount = await xUSDToken.getAccountInfo(wallet.publicKey)
+  // const xUSDAccount = await xUSDToken.getAccountInfo(wallet.publicKey)
 
-  if (!isLiquidatable(state, assetsList, exchangeAccount)) return
+  // if (!isLiquidatable(state, assetsList, exchangeAccount.account)) return
 
-  console.log('Liquidating..')
+  // console.log('Liquidating..')
 
-  const liquidatedEntry = exchangeAccount.collaterals[0]
-  const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
-  const { liquidationRate } = state
+  // const liquidatedEntry = exchangeAccount.account.collaterals[0]
+  // const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
+  // const { liquidationRate } = state
 
-  const debt = calculateUserDebt(state, assetsList, exchangeAccount)
-  const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
-  // Taking .1% for debt change
-  const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
+  // const debt = calculateUserDebt(state, assetsList, exchangeAccount.account)
+  // const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
+  // // Taking .1% for debt change
+  // const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
 
-  if (xUSDAccount.amount.lt(amountNeeded)) console.error('Amount of xUSD too low')
+  // if (xUSDAccount.amount.lt(amountNeeded)) console.error('Amount of xUSD too low')
 
-  const amount = amountNeeded.gt(xUSDAccount.amount) ? xUSDAccount.amount : U64_MAX
+  // const amount = amountNeeded.gt(xUSDAccount.amount) ? xUSDAccount.amount : U64_MAX
 
-  await exchange.liquidate({
-    exchangeAccount: account,
-    signer: wallet.publicKey,
-    liquidationFund: liquidatedCollateral.liquidationFund,
-    amount,
-    liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
-    liquidatorUsdAccount: xUSDAccount.address,
-    reserveAccount: liquidatedCollateral.reserveAddress,
-    signers: [wallet]
-  })
+  // await exchange.liquidate({
+  //   exchangeAccount: exchangeAccount.address,
+  //   signer: wallet.publicKey,
+  //   liquidationFund: liquidatedCollateral.liquidationFund,
+  //   amount,
+  //   liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
+  //   liquidatorUsdAccount: xUSDAccount.address,
+  //   reserveAccount: liquidatedCollateral.reserveAddress,
+  //   signers: [wallet]
+  // })
 }
 
 export const getAccountsAtRisk = async (
   connection: Connection,
   exchange: Exchange,
   exchangeProgram: PublicKey
-): Promise<UserWithDeadline[]> => {
+): Promise<UserWithAddress[]> => {
   // Fetching all account associated with the exchange, and size of 510 (ExchangeAccount)
   console.log('Fetching accounts..')
   console.time('fetching time')
@@ -113,7 +113,7 @@ export const getAccountsAtRisk = async (
   console.timeEnd('fetching time')
   console.log(`Calculating debt for (${accounts.length}) accounts..`)
   console.time('calculating time')
-  let atRisk: UserWithDeadline[] = []
+  let atRisk: UserWithAddress[] = []
   let markedCounter = 0
 
   for (const user of accounts) {
@@ -145,7 +145,7 @@ export const getAccountsAtRisk = async (
   return atRisk
 }
 
-export interface UserWithDeadline {
+export interface UserWithAddress {
   address: PublicKey
   data: ExchangeAccount
 }
