@@ -70,16 +70,27 @@ const main = async () => {
     if (Date.now() > nextFullCheck + CHECK_ALL_INTERVAL) {
       nextFullCheck = Date.now() + CHECK_ALL_INTERVAL
       // Fetching all accounts with debt over limit
-      const newAccounts = await getAccountsAtRisk(connection, exchange, exchangeProgram)
+      const newAccounts = await getAccountsAtRisk(
+        connection,
+        exchange,
+        exchangeProgram,
+        state,
+        assetsList
+      )
 
-      atRisk = newAccounts.map((fresh) => {
-        return new Synchronizer<ExchangeAccount>(
-          connection,
-          fresh.address,
-          'ExchangeAccount',
-          fresh.data
-        )
-      })
+      const freshAtRisk = newAccounts
+        .filter((fresh) => !atRisk.some((old) => old.address.equals(fresh.address)))
+        .sort((a, b) => a.data.liquidationDeadline.cmp(b.data.liquidationDeadline))
+        .map((fresh) => {
+          return new Synchronizer<ExchangeAccount>(
+            connection,
+            fresh.address,
+            'ExchangeAccount',
+            fresh.data
+          )
+        })
+
+      atRisk = atRisk.concat(freshAtRisk)
     }
 
     if (Date.now() > nextCheck + CHECK_AT_RISK_INTERVAL) {

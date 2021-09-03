@@ -58,8 +58,6 @@ export const liquidate = async (
   xUSDBalance: BN,
   xUSDAccountAddress: PublicKey
 ) => {
-  console.log('Liquidating???')
-
   if (!isLiquidatable(state.account, assetsList.account, exchangeAccount.account)) return false
 
   console.log('Liquidating..')
@@ -73,8 +71,14 @@ export const liquidate = async (
   // Taking .1% for debt change
   const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
 
-  if (xUSDBalance.lt(amountNeeded))
+  if (xUSDBalance.lt(amountNeeded)) {
+    if (xUSDBalance.eqn(0)) {
+      console.error('xUSD Account is empty')
+      // throw Error('No xUSD in account')
+      return false
+    }
     console.error(`Amount of xUSD too low, using ${xUSDBalance.toString()}`)
+  }
 
   const amount = amountNeeded.gt(xUSDBalance) ? xUSDBalance : U64_MAX
 
@@ -97,18 +101,17 @@ export const liquidate = async (
 export const getAccountsAtRisk = async (
   connection: Connection,
   exchange: Exchange,
-  exchangeProgram: PublicKey
+  exchangeProgram: PublicKey,
+  state: Synchronizer<ExchangeState>,
+  assetsList: Synchronizer<AssetsList>
 ): Promise<UserWithAddress[]> => {
-  // Fetching all account associated with the exchange, and size of 510 (ExchangeAccount)
+  // Fetching all account associated with the exchange, and size of 1420 (ExchangeAccount)
   console.log('Fetching accounts..')
   console.time('fetching time')
 
   const accounts = await connection.getProgramAccounts(exchangeProgram, {
     filters: [{ dataSize: 1420 }]
   })
-
-  const state: ExchangeState = await exchange.getState()
-  const assetsList = await exchange.getAssetsList(state.assetsList)
 
   console.timeEnd('fetching time')
   console.log(`Calculating debt for (${accounts.length}) accounts..`)
@@ -117,7 +120,7 @@ export const getAccountsAtRisk = async (
   let markedCounter = 0
 
   for (const user of accounts) {
-    const liquidatable = isLiquidatable(state, assetsList, parseUser(user.account))
+    const liquidatable = isLiquidatable(state.account, assetsList.account, parseUser(user.account))
     if (!liquidatable) continue
 
     const exchangeAccount = parseUser(user.account)
@@ -132,8 +135,6 @@ export const getAccountsAtRisk = async (
       markedCounter++
     } else atRisk.push({ address: user.pubkey, data: exchangeAccount })
   }
-
-  atRisk = atRisk.sort((a, b) => a.data.liquidationDeadline.cmp(b.data.liquidationDeadline))
 
   console.log('Done scanning accounts')
   console.timeEnd('calculating time')
