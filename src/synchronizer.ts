@@ -26,6 +26,6 @@ export class Synchronizer<T> {
   private updateFromAccountInfo(account: AccountInfo<Buffer>) {
     this.account = coder.decode<T>(this.nameInIDL, account.data)
     // @ts-ignore: Unreachable code error
-    console.log(`${this.account.collaterals[0].amount} account updated`)
+    // console.log(this.account, `account updated`)
   }
 }

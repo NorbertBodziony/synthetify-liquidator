@@ -50,11 +50,10 @@ export const createAccountsOnAllCollaterals = async (
 }
 
 export const liquidate = async (
-  connection: Connection,
   exchange: Exchange,
   exchangeAccount: Synchronizer<ExchangeAccount>,
-  assetsList: AssetsList,
-  state: ExchangeState,
+  assetsList: Synchronizer<AssetsList>,
+  state: Synchronizer<ExchangeState>,
   collateralAccounts: PublicKey[],
   wallet: Account,
   xUSDBalance: BN,
@@ -62,15 +61,15 @@ export const liquidate = async (
 ) => {
   console.log('Liquidating???')
 
-  if (!isLiquidatable(state, assetsList, exchangeAccount.account)) return
+  if (!isLiquidatable(state.account, assetsList.account, exchangeAccount.account)) return
 
   console.log('Liquidating..')
 
   const liquidatedEntry = exchangeAccount.account.collaterals[0]
-  const liquidatedCollateral = assetsList.collaterals[liquidatedEntry.index]
-  const { liquidationRate } = state
+  const liquidatedCollateral = assetsList.account.collaterals[liquidatedEntry.index]
+  const { liquidationRate } = state.account
 
-  const debt = calculateUserDebt(state, assetsList, exchangeAccount.account)
+  const debt = calculateUserDebt(state.account, assetsList.account, exchangeAccount.account)
   const maxLiquidate = debt.mul(liquidationRate.val).divn(10 ** liquidationRate.scale)
   // Taking .1% for debt change
   const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)

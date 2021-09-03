@@ -1,7 +1,7 @@
 import { Connection, Account, clusterApiUrl, PublicKey } from '@solana/web3.js'
 import { Provider, BN } from '@project-serum/anchor'
 import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
-import { Exchange, ExchangeAccount } from '@synthetify/sdk/lib/exchange'
+import { AssetsList, Exchange, ExchangeAccount, ExchangeState } from '@synthetify/sdk/lib/exchange'
 import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { liquidate, getAccountsAtRisk, createAccountsOnAllCollaterals } from './utils'
@@ -29,16 +29,32 @@ const main = async () => {
     exchangeProgram
   )
 
-  const state = await exchange.getState()
-  const assetsList = await exchange.getAssetsList(state.assetsList)
+  // const state = await exchange.getState()
+  const state = new Synchronizer<ExchangeState>(
+    connection,
+    exchange.stateAddress,
+    'State',
+    await exchange.getState()
+  )
 
-  const prices = await new Prices(connection, assetsList)
-  await prices.initializationPromise
+  const assetsList = new Synchronizer<AssetsList>(
+    connection,
+    (await exchange.getState()).assetsList,
+    'AssetsList',
+    await exchange.getAssetsList(state.account.assetsList)
+  )
+
+  const prices = await new Prices(connection, assetsList.account)
+  await prices.ready()
 
   console.log('Assuring accounts on every collateral..')
-  const collateralAccounts = await createAccountsOnAllCollaterals(wallet, connection, assetsList)
+  const collateralAccounts = await createAccountsOnAllCollaterals(
+    wallet,
+    connection,
+    assetsList.account
+  )
 
-  const xUSDAddress = assetsList.synthetics[0].assetAddress
+  const xUSDAddress = assetsList.account.synthetics[0].assetAddress
   const xUSDToken = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
   const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
@@ -81,8 +97,8 @@ const main = async () => {
           connection,
           exchange,
           exchangeAccount,
-          assetsList,
-          state,
+          assetsList.account,
+          state.account,
           collateralAccounts,
           wallet,
           xUSDAccount.amount,

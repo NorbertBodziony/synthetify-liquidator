@@ -8,7 +8,7 @@ export class Prices {
   private connection: Connection
   private oracles: PublicKey[]
   private scale = ORACLE_OFFSET
-  public initializationPromise: Promise<void[]>
+  private initializationPromise: Promise<void[]>
   public prices: BN[]
 
   constructor(connection: Connection, assetsList: AssetsList) {
@@ -37,5 +37,9 @@ export class Prices {
         this.prices[index] = new BN(price * 10 ** this.scale)
       })
     })
+  }
+
+  async ready() {
+    await this.initializationPromise
   }
 }
