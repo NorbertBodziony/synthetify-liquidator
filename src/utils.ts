@@ -6,6 +6,7 @@ import { AccountsCoder, BN } from '@project-serum/anchor'
 import { calculateDebt, calculateUserMaxDebt } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Synchronizer } from './synchronizer'
+import { blue, green, red } from 'colors'
 
 const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
 export const U64_MAX = new BN('18446744073709551615')
@@ -60,7 +61,7 @@ export const liquidate = async (
 ) => {
   if (!isLiquidatable(state.account, assetsList.account, exchangeAccount.account)) return false
 
-  console.log('Liquidating..')
+  console.log(green('Liquidating..'))
 
   const liquidatedEntry = exchangeAccount.account.collaterals[0]
   const liquidatedCollateral = assetsList.account.collaterals[liquidatedEntry.index]
@@ -73,7 +74,7 @@ export const liquidate = async (
 
   if (xUSDBalance.lt(amountNeeded)) {
     if (xUSDBalance.eqn(0)) {
-      console.error('xUSD Account is empty')
+      console.error(red('xUSD Account is empty'))
       // throw Error('No xUSD in account')
       return false
     }
@@ -139,7 +140,7 @@ export const getAccountsAtRisk = async (
   console.log('Done scanning accounts')
   console.timeEnd('calculating time')
 
-  console.log(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`)
+  console.log(blue(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`))
   return atRisk
 }
 

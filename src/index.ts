@@ -7,6 +7,7 @@ import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { liquidate, getAccountsAtRisk, createAccountsOnAllCollaterals } from './utils'
 import { Prices } from './prices'
 import { Synchronizer } from './synchronizer'
+import { cyan } from 'colors'
 
 const XUSD_BEFORE_WARNING = new BN(100).pow(new BN(ACCURACY))
 const CHECK_ALL_INTERVAL = 10 * 1000
@@ -97,7 +98,7 @@ const main = async () => {
       nextCheck = Date.now() + CHECK_AT_RISK_INTERVAL
       const slot = new BN(await connection.getSlot())
 
-      console.log(`Checking accounts suitable for liquidation (${atRisk.length})..`)
+      console.log(cyan(`Checking accounts suitable for liquidation (${atRisk.length})..`))
       console.time('checking time')
 
       for (const exchangeAccount of atRisk) {
@@ -124,8 +125,7 @@ const main = async () => {
       console.timeEnd('checking time')
     }
 
-    const closerCheck = nextCheck < nextFullCheck ? nextCheck : nextFullCheck
-    await sleep(closerCheck - Date.now() + 1)
+    await sleep(Math.min(nextCheck, nextFullCheck) - Date.now() + 1)
   }
 }
 
