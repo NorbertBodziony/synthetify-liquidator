@@ -44,7 +44,7 @@ const main = async () => {
     await exchange.getAssetsList(state.account.assetsList)
   )
 
-  const prices = await new Prices(connection, assetsList.account)
+  const prices = new Prices(connection, assetsList.account)
   await prices.ready()
 
   console.log('Assuring accounts on every collateral..')
@@ -56,7 +56,7 @@ const main = async () => {
 
   const xUSDAddress = assetsList.account.synthetics[0].assetAddress
   const xUSDToken = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
-  const xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
+  let xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
   if (xUSDAccount.amount.lt(XUSD_BEFORE_WARNING))
     console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
@@ -93,17 +93,20 @@ const main = async () => {
         // Users are sorted so we can stop checking if deadline is in the future
         if (slot.lt(exchangeAccount.account.liquidationDeadline)) break
 
-        await liquidate(
-          connection,
-          exchange,
-          exchangeAccount,
-          assetsList.account,
-          state.account,
-          collateralAccounts,
-          wallet,
-          xUSDAccount.amount,
-          xUSDAccount.address
-        )
+        while (true) {
+          const liquidated = await liquidate(
+            exchange,
+            exchangeAccount,
+            assetsList,
+            state,
+            collateralAccounts,
+            wallet,
+            xUSDAccount.amount,
+            xUSDAccount.address
+          )
+          if (!liquidated) break
+          xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
+        }
       }
 
       console.log('Finished checking')

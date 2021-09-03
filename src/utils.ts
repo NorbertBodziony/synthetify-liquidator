@@ -45,7 +45,6 @@ export const createAccountsOnAllCollaterals = async (
       return token.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     })
   )
-  console.log('accounts', accounts)
   return accounts.map(({ address }) => address)
 }
 
@@ -61,7 +60,7 @@ export const liquidate = async (
 ) => {
   console.log('Liquidating???')
 
-  if (!isLiquidatable(state.account, assetsList.account, exchangeAccount.account)) return
+  if (!isLiquidatable(state.account, assetsList.account, exchangeAccount.account)) return false
 
   console.log('Liquidating..')
 
@@ -74,7 +73,8 @@ export const liquidate = async (
   // Taking .1% for debt change
   const amountNeeded = new BN(maxLiquidate).muln(999).divn(1000)
 
-  if (xUSDBalance.lt(amountNeeded)) console.error('Amount of xUSD too low')
+  if (xUSDBalance.lt(amountNeeded))
+    console.error(`Amount of xUSD too low, using ${xUSDBalance.toString()}`)
 
   const amount = amountNeeded.gt(xUSDBalance) ? xUSDBalance : U64_MAX
 
@@ -90,6 +90,8 @@ export const liquidate = async (
     reserveAccount: liquidatedCollateral.reserveAddress,
     signers: [wallet]
   })
+
+  return true
 }
 
 export const getAccountsAtRisk = async (
