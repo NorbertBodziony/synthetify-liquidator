@@ -45,6 +45,7 @@ export const createAccountsOnAllCollaterals = async (
       return token.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     })
   )
+  console.log('accounts', accounts)
   return accounts.map(({ address }) => address)
 }
 
@@ -56,15 +57,9 @@ export const liquidate = async (
   state: ExchangeState,
   collateralAccounts: PublicKey[],
   wallet: Account,
-  xUSDBalance: BN
+  xUSDBalance: BN,
+  xUSDAccountAddress: PublicKey
 ) => {
-  // const xUSDToken = new Token(
-  //   connection,
-  //   assetsList.synthetics[0].assetAddress,
-  //   TOKEN_PROGRAM_ID,
-  //   wallet
-  // )
-  // const xUSDAccount = await xUSDToken.getAccountInfo(wallet.publicKey)
   console.log('Liquidating???')
 
   if (!isLiquidatable(state, assetsList, exchangeAccount.account)) return
@@ -84,13 +79,15 @@ export const liquidate = async (
 
   const amount = amountNeeded.gt(xUSDBalance) ? xUSDBalance : U64_MAX
 
+  const liquidatorCollateralAccount = collateralAccounts[liquidatedEntry.index]
+
   await exchange.liquidate({
     exchangeAccount: exchangeAccount.address,
     signer: wallet.publicKey,
     liquidationFund: liquidatedCollateral.liquidationFund,
     amount,
-    liquidatorCollateralAccount: collateralAccounts[liquidatedEntry.index],
-    liquidatorUsdAccount: assetsList.synthetics[0].assetAddress,
+    liquidatorCollateralAccount,
+    liquidatorUsdAccount: xUSDAccountAddress,
     reserveAccount: liquidatedCollateral.reserveAddress,
     signers: [wallet]
   })

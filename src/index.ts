@@ -56,10 +56,6 @@ const main = async () => {
       // Fetching all accounts with debt over limit
       const newAccounts = await getAccountsAtRisk(connection, exchange, exchangeProgram)
 
-      // let selected = newAccounts.find(({ data }) =>
-      //   data.owner.equals(new PublicKey('Dqt2SeQZ2uiw1PUVgKRr5PErBu5AjxD1Ut43yxMSwRAM'))
-      // )
-
       atRisk = newAccounts.map((fresh) => {
         return new Synchronizer<ExchangeAccount>(
           connection,
@@ -79,8 +75,6 @@ const main = async () => {
 
       for (const exchangeAccount of atRisk) {
         // Users are sorted so we can stop checking if deadline is in the future
-        // console.log(exchangeAccount.account.collaterals[0].amount.toString())
-
         if (slot.lt(exchangeAccount.account.liquidationDeadline)) break
 
         await liquidate(
@@ -91,7 +85,8 @@ const main = async () => {
           state,
           collateralAccounts,
           wallet,
-          xUSDAccount.amount
+          xUSDAccount.amount,
+          xUSDAccount.address
         )
       }
 
