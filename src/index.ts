@@ -90,7 +90,7 @@ const main = async () => {
       nextCheck = Date.now() + CHECK_AT_RISK_INTERVAL
       const slot = new BN(await connection.getSlot())
 
-      console.log(cyan(`Checking accounts suitable for liquidation (${atRisk.length})..`))
+      console.log(cyan(`Liquidating suitable accounts (${atRisk.length})..`))
       console.time('checking time')
 
       for (const exchangeAccount of atRisk) {
@@ -113,6 +113,7 @@ const main = async () => {
         }
       }
 
+      xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
       console.log('Finished checking')
       console.timeEnd('checking time')
     }

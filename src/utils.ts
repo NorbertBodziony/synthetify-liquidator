@@ -85,16 +85,21 @@ export const liquidate = async (
 
   const liquidatorCollateralAccount = collateralAccounts[liquidatedEntry.index]
 
-  await exchange.liquidate({
-    exchangeAccount: exchangeAccount.address,
-    signer: wallet.publicKey,
-    liquidationFund: liquidatedCollateral.liquidationFund,
-    amount,
-    liquidatorCollateralAccount,
-    liquidatorUsdAccount: xUSDAccountAddress,
-    reserveAccount: liquidatedCollateral.reserveAddress,
-    signers: [wallet]
-  })
+  try {
+    await exchange.liquidate({
+      exchangeAccount: exchangeAccount.address,
+      signer: wallet.publicKey,
+      liquidationFund: liquidatedCollateral.liquidationFund,
+      amount,
+      liquidatorCollateralAccount,
+      liquidatorUsdAccount: xUSDAccountAddress,
+      reserveAccount: liquidatedCollateral.reserveAddress,
+      signers: [wallet]
+    })
+  } catch (e) {
+    console.error(e)
+    return false
+  }
 
   return true
 }
@@ -131,7 +136,7 @@ export const getAccountsAtRisk = async (
   console.log('Done scanning accounts')
   console.timeEnd('calculating time')
 
-  console.log(cyan(`Checking accounts suitable for liquidation..`))
+  console.log(cyan(`Running check on liquidatable accounts..`))
 
   for (let user of atRisk) {
     // Set a deadline if not already set
