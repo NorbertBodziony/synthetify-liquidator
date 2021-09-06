@@ -5,9 +5,9 @@ import { AssetsList, Exchange, ExchangeAccount, ExchangeState } from '@synthetif
 import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { liquidate, getAccountsAtRisk, createAccountsOnAllCollaterals } from './utils'
+import { cyan, yellow } from 'colors'
 import { Prices } from './prices'
 import { Synchronizer } from './synchronizer'
-import { cyan } from 'colors'
 
 const XUSD_BEFORE_WARNING = new BN(100).pow(new BN(ACCURACY))
 const CHECK_ALL_INTERVAL = 10 * 1000
@@ -38,29 +38,21 @@ const main = async () => {
     await exchange.getState()
   )
 
-  const assetsList = new Synchronizer<AssetsList>(
-    connection,
-    (await exchange.getState()).assetsList,
-    'AssetsList',
-    await exchange.getAssetsList(state.account.assetsList)
-  )
-
-  const prices = new Prices(connection, assetsList.account)
-  await prices.ready()
+  const prices = new Prices(connection, await exchange.getAssetsList(state.account.assetsList))
 
   console.log('Assuring accounts on every collateral..')
   const collateralAccounts = await createAccountsOnAllCollaterals(
     wallet,
     connection,
-    assetsList.account
+    prices.assetsList
   )
 
-  const xUSDAddress = assetsList.account.synthetics[0].assetAddress
+  const xUSDAddress = prices.assetsList.synthetics[0].assetAddress
   const xUSDToken = new Token(connection, xUSDAddress, TOKEN_PROGRAM_ID, wallet)
   let xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
 
   if (xUSDAccount.amount.lt(XUSD_BEFORE_WARNING))
-    console.warn(`Account is low on xUSD (${xUSDAccount.amount.toString()})`)
+    console.warn(yellow(`Account is low on xUSD (${xUSDAccount.amount.toString()})`))
 
   // Main loop
   let nextFullCheck = 0
@@ -76,7 +68,7 @@ const main = async () => {
         exchange,
         exchangeProgram,
         state,
-        assetsList
+        prices.assetsList
       )
 
       const freshAtRisk = newAccounts
@@ -109,8 +101,8 @@ const main = async () => {
           const liquidated = await liquidate(
             exchange,
             exchangeAccount,
-            assetsList,
-            state,
+            prices.assetsList,
+            state.account,
             collateralAccounts,
             wallet,
             xUSDAccount.amount,

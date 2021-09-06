@@ -3,43 +3,25 @@ import { parsePriceData } from '@pythnetwork/client'
 import { AssetsList } from '@synthetify/sdk/lib/exchange'
 import { BN } from '@project-serum/anchor'
 import { ORACLE_OFFSET } from '@synthetify/sdk'
+import { toDecimal } from '@synthetify/sdk/lib/utils'
 
 export class Prices {
   private connection: Connection
-  private oracles: PublicKey[]
-  private scale = ORACLE_OFFSET
-  private initializationPromise: Promise<void[]>
-  public prices: BN[]
+  public assetsList: AssetsList
 
   constructor(connection: Connection, assetsList: AssetsList) {
     this.connection = connection
-    this.oracles = assetsList.assets.map(({ feedAddress }) => feedAddress)
-    this.prices = [...this.oracles.map(() => new BN(0))]
-
-    // Initialize prices (for assets with constant prices)
-    this.initializationPromise = Promise.all(
-      this.oracles.map(async (feedAddress, index) => {
-        if (index === 0) {
-          this.prices[index] = new BN(10 ** this.scale)
-          return
-        }
-
-        const { data } = await this.connection.getAccountInfo(feedAddress)
-        const { price } = parsePriceData(data)
-        this.prices[index] = new BN(price * 10 ** this.scale)
-      })
-    )
+    this.assetsList = assetsList
 
     // Subscribe to oracle updates
-    this.oracles.forEach((feedAddress, index) => {
+    this.assetsList.assets.forEach(({ feedAddress }, index) => {
       connection.onAccountChange(feedAddress, (accountInfo) => {
         const { price } = parsePriceData(accountInfo.data)
-        this.prices[index] = new BN(price * 10 ** this.scale)
+        this.assetsList.assets[index].price = toDecimal(
+          new BN(price * 10 ** ORACLE_OFFSET),
+          ORACLE_OFFSET
+        )
       })
     })
-  }
-
-  async ready() {
-    await this.initializationPromise
   }
 }
