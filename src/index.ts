@@ -1,6 +1,6 @@
 import { Connection, Account, clusterApiUrl, PublicKey } from '@solana/web3.js'
 import { Provider, BN } from '@project-serum/anchor'
-import { Network, DEV_NET } from '@synthetify/sdk/lib/network'
+import { Network, DEV_NET, MAIN_NET } from '@synthetify/sdk/lib/network'
 import { AssetsList, Exchange, ExchangeAccount, ExchangeState } from '@synthetify/sdk/lib/exchange'
 import { ACCURACY, sleep } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
@@ -10,15 +10,15 @@ import { Prices } from './prices'
 import { Synchronizer } from './synchronizer'
 
 const XUSD_BEFORE_WARNING = new BN(100).pow(new BN(ACCURACY))
-const CHECK_ALL_INTERVAL = 10 * 1000
-const CHECK_AT_RISK_INTERVAL = 5 * 1000
-const NETWORK = Network.DEV
+const CHECK_ALL_INTERVAL = 60 * 60 * 1000
+const CHECK_AT_RISK_INTERVAL = 5 * 60 * 1000
+const NETWORK = Network.MAIN
 
 const provider = Provider.local()
 // @ts-expect-error
 const wallet = provider.wallet.payer as Account
-const connection = new Connection(clusterApiUrl('devnet'), 'confirmed')
-const { exchange: exchangeProgram, exchangeAuthority } = DEV_NET
+const connection = new Connection(clusterApiUrl('mainnet-beta'), 'confirmed')
+const { exchange: exchangeProgram, exchangeAuthority } = MAIN_NET
 
 const main = async () => {
   console.log('Initialization')
