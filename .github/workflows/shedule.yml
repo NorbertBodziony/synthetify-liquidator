@@ -16,9 +16,9 @@ jobs:
         with:
           node-version: 14.x
       - name: Install ts
-        run: npm install -D typescript
+        run: npm install -g typescript
       - name: Install ts-node
-        run: npm install -D ts-node
+        run: npm install -g ts-node
       - name: Install Dependencies
         run: npm i
       - name: run liquidator

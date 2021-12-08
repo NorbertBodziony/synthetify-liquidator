@@ -5,12 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "ANCHOR_WALLET=/Users/norbertbodziony/.config/solana/id.json ts-node ./src/index.ts",
-    "ci": "ts-node ./src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Synthetify/liquidator.git"
+    "ci": "ts-node ./src/index.ts"
   },
   "author": "Mateusz Zając / Norbert Bodziony",
   "license": "ISC",
@@ -44,9 +39,5 @@
     "prettier": "^2.2.1",
     "prettier-config-standard": "^4.0.0",
     "typescript": "^4.2.3"
-  },
-  "bugs": {
-    "url": "https://github.com/Synthetify/liquidator/issues"
-  },
-  "homepage": "https://github.com/Synthetify/liquidator#readme"
+  }
 }

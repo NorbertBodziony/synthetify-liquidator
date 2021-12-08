@@ -1,4 +1,3 @@
-import { Idl } from '@project-serum/anchor/dist/idl'
 import { Connection, Account, PublicKey, AccountInfo } from '@solana/web3.js'
 import { ExchangeAccount, AssetsList, ExchangeState, Exchange } from '@synthetify/sdk/lib/exchange'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'

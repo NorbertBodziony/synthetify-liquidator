@@ -1,5 +1,4 @@
 import { AccountsCoder } from '@project-serum/anchor'
-import { Idl } from '@project-serum/anchor/dist/idl'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountInfo, Connection, PublicKey } from '@solana/web3.js'
 
