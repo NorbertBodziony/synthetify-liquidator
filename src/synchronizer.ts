@@ -3,7 +3,7 @@ import { Idl } from '@project-serum/anchor/dist/idl'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountInfo, Connection, PublicKey } from '@solana/web3.js'
 
-const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
+const coder = new AccountsCoder(EXCHANGE_IDL as any)
 
 export class Synchronizer<T> {
   private connection: Connection

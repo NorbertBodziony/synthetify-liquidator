@@ -8,7 +8,7 @@ import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Synchronizer } from './synchronizer'
 import { blue, cyan, green, red } from 'colors'
 
-const coder = new AccountsCoder(EXCHANGE_IDL as Idl)
+const coder = new AccountsCoder(EXCHANGE_IDL as any)
 export const U64_MAX = new BN('18446744073709551615')
 
 export const isLiquidatable = (

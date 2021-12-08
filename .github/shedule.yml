@@ -1,0 +1,27 @@
+name: shedule liquidation
+
+on:
+  schedule:
+    - cron: '5 * * * *'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Use Node 14.x
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
+      - name: Install ts
+        run: npm install -D typescript
+      - name: Install ts-node
+        run: npm install -D ts-node
+      - name: Install Dependencies
+        run: npm i
+      - name: run liquidator
+        run: npm run ci
+        env:
+          CI: true
+          PRIV_KEY: ${{ secrets.PRIV_KEY }}
