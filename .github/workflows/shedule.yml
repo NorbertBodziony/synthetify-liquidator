@@ -3,7 +3,8 @@ name: shedule liquidation
 on:
   schedule:
     - cron: '*/5 * * * *'
-
+  workflow_dispatch:
+    branches: [master]
 jobs:
   upload:
     runs-on: ubuntu-latest
