@@ -17,8 +17,6 @@ export class Prices {
     this.assetsList.assets.forEach(({ feedAddress }, index) => {
       connection.onAccountChange(feedAddress, (accountInfo) => {
         const { price } = parsePriceData(accountInfo.data)
-        console.log(this.assetsList.assets[index].feedAddress.toString())
-        console.log(price)
         this.assetsList.assets[index].price = toDecimal(
           new BN(price * 10 ** ORACLE_OFFSET),
           ORACLE_OFFSET
