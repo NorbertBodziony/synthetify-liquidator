@@ -1,4 +1,4 @@
-name: shedule liquidation
+name: shedule liquidation 2
 
 on:
   schedule:
