@@ -89,22 +89,19 @@ const main = async () => {
 
     for (const exchangeAccount of atRisk) {
       // Users are sorted so we can stop checking if deadline is in the future
-      if (slot.lt(exchangeAccount.account.liquidationDeadline)) break
+      if (slot.lt(exchangeAccount.account.liquidationDeadline)) continue
 
-      while (true) {
-        const liquidated = await liquidate(
-          exchange,
-          exchangeAccount,
-          prices.assetsList,
-          state.account,
-          collateralAccounts,
-          wallet,
-          xUSDAccount.amount,
-          xUSDAccount.address
-        )
-        if (!liquidated) break
-        xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
-      }
+      const liquidated = await liquidate(
+        exchange,
+        exchangeAccount,
+        prices.assetsList,
+        state.account,
+        collateralAccounts,
+        wallet,
+        xUSDAccount.amount,
+        xUSDAccount.address
+      )
+      xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     }
 
     xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
