@@ -14,7 +14,7 @@ const secretWallet = new Wallet(
 console.log(`Your wallet address ${secretWallet.publicKey.toBase58()}`)
 const XUSD_BEFORE_WARNING = new BN(100).pow(new BN(ACCURACY))
 const NETWORK = Network.MAIN
-const connection = new Connection('https://ssc-dao.genesysgo.net', 'confirmed')
+const connection = new Connection('https://ssc-dao.genesysgo.net', 'recent')
 
 const provider = new Provider(connection, secretWallet, { commitment: 'recent' })
 // @ts-expect-error
