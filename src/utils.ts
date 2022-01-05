@@ -1,4 +1,4 @@
-import { Connection, Account, PublicKey, AccountInfo } from '@solana/web3.js'
+import { Connection, Account, PublicKey, AccountInfo, Transaction } from '@solana/web3.js'
 import { ExchangeAccount, AssetsList, ExchangeState, Exchange } from '@synthetify/sdk/lib/exchange'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountsCoder, BN } from '@project-serum/anchor'
@@ -85,22 +85,26 @@ export const liquidate = async (
   const liquidatorCollateralAccount = collateralAccounts[liquidatedEntry.index]
 
   try {
-    await exchange.liquidate({
+    const ix = await exchange.liquidateInstruction({
       exchangeAccount: exchangeAccount.address,
       signer: wallet.publicKey,
       liquidationFund: liquidatedCollateral.liquidationFund,
       amount,
       liquidatorCollateralAccount,
       liquidatorUsdAccount: xUSDAccountAddress,
-      reserveAccount: liquidatedCollateral.reserveAddress,
-      signers: [wallet]
+      reserveAccount: liquidatedCollateral.reserveAddress
     })
+    const tx = new Transaction().add(ix)
+    const blockhash = await exchange.connection.getRecentBlockhash('recent')
+    tx.recentBlockhash = blockhash.blockhash
+    tx.feePayer = wallet.publicKey
+    tx.sign(wallet)
+    const rawTx = tx.serialize()
+    return await exchange.connection.sendRawTransaction(rawTx)
   } catch (e) {
     console.error(e)
     return false
   }
-
-  return true
 }
 
 export const getAccountsAtRisk = async (

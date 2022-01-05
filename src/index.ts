@@ -105,6 +105,7 @@ const main = async () => {
         xUSDAccount.amount,
         xUSDAccount.address
       )
+      console.log(liquidated)
       xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     }
 
