@@ -2,7 +2,7 @@ import { Connection, Account, PublicKey, AccountInfo, Transaction } from '@solan
 import { ExchangeAccount, AssetsList, ExchangeState, Exchange } from '@synthetify/sdk/lib/exchange'
 import EXCHANGE_IDL from '@synthetify/sdk/src/idl/exchange.json'
 import { AccountsCoder, BN } from '@project-serum/anchor'
-import { calculateDebt, calculateUserMaxDebt } from '@synthetify/sdk/lib/utils'
+import { calculateDebt, calculateUserMaxDebt, tou64 } from '@synthetify/sdk/lib/utils'
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Synchronizer } from './synchronizer'
 import { blue, cyan, green, red } from 'colors'
@@ -85,6 +85,15 @@ export const liquidate = async (
   const liquidatorCollateralAccount = collateralAccounts[liquidatedEntry.index]
 
   try {
+    const updateIx = await exchange.updatePricesInstruction(exchange.state.assetsList)
+    const approveIx = await Token.createApproveInstruction(
+      TOKEN_PROGRAM_ID,
+      xUSDAccountAddress,
+      exchange.exchangeAuthority,
+      wallet.publicKey,
+      [],
+      tou64(amount)
+    )
     const ix = await exchange.liquidateInstruction({
       exchangeAccount: exchangeAccount.address,
       signer: wallet.publicKey,
@@ -94,7 +103,7 @@ export const liquidate = async (
       liquidatorUsdAccount: xUSDAccountAddress,
       reserveAccount: liquidatedCollateral.reserveAddress
     })
-    const tx = new Transaction().add(ix)
+    const tx = new Transaction().add(updateIx).add(approveIx).add(ix)
     const blockhash = await exchange.connection.getRecentBlockhash('recent')
     tx.recentBlockhash = blockhash.blockhash
     tx.feePayer = wallet.publicKey
