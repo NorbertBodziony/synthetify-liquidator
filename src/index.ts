@@ -89,8 +89,12 @@ const main = async () => {
 
     for (const exchangeAccount of atRisk) {
       // Users are sorted so we can stop checking if deadline is in the future
-      if (slot.lt(exchangeAccount.account.liquidationDeadline)) continue
-
+      if (slot.lt(exchangeAccount.account.liquidationDeadline)) {
+        console.log(
+          `Slots left ${exchangeAccount.account.liquidationDeadline.sub(slot).toString()}`
+        )
+        continue
+      }
       const liquidated = await liquidate(
         exchange,
         exchangeAccount,
