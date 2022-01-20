@@ -154,6 +154,8 @@ export const getAccountsAtRisk = async (
     // Set a deadline if not already set
     if (user.data.liquidationDeadline.eq(U64_MAX)) {
       try {
+        console.log(user.data.liquidationDeadline.toString())
+        console.log(user.address.toString())
         await exchange.checkAccount(user.address)
       } catch (error) {
         console.log(error)
