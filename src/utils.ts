@@ -32,7 +32,7 @@ export const calculateUserDebt = (
 }
 
 export const parseUser = (account: AccountInfo<Buffer>) =>
-  coder.decode<ExchangeAccount>('ExchangeAccount', account.data)
+  coder.decode<ExchangeAccount>('exchangeAccount', account.data)
 
 export const createAccountsOnAllCollaterals = async (
   wallet: Account,
