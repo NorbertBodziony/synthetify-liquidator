@@ -36,7 +36,7 @@ const main = async () => {
     const state = new Synchronizer<ExchangeState>(
       connection,
       exchange.stateAddress,
-      'State',
+      'state',
       await exchange.getState()
     )
 
@@ -75,7 +75,7 @@ const main = async () => {
         return new Synchronizer<ExchangeAccount>(
           connection,
           fresh.address,
-          'ExchangeAccount',
+          'exchangeAccount',
           fresh.data
         )
       })
