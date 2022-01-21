@@ -40,8 +40,11 @@ const main = async () => {
       await exchange.getState()
     )
 
-    const prices = new Prices(connection, await exchange.getAssetsList(state.account.assetsList))
-    await sleep(1000) // TODO fetch prices directly rather than wait fro update
+    const prices = await Prices.build(
+      connection,
+      await exchange.getAssetsList(state.account.assetsList)
+    )
+    await sleep(2000) // TODO fetch prices directly rather than wait fro update
 
     console.log('Assuring accounts on every collateral..')
     const collateralAccounts = await createAccountsOnAllCollaterals(

@@ -149,28 +149,16 @@ export const getAccountsAtRisk = async (
   console.timeEnd('calculating time')
 
   console.log(cyan(`Running check on liquidatable accounts..`))
-  const a: Promise<string>[] = []
+
   for (let user of atRisk) {
     // Set a deadline if not already set
     if (user.data.liquidationDeadline.eq(U64_MAX)) {
-      try {
-        console.log(user.data.liquidationDeadline.toString())
-        console.log(user.address.toString())
-        // await exchange.checkAccount(user.address)
-        a.push(exchange.checkAccount(user.address))
-      } catch (error) {
-        console.log(error)
-      }
+      await exchange.checkAccount(user.address)
+      user = { address: user.address, data: await exchange.getExchangeAccount(user.address) }
+      markedCounter++
     }
-    user = { address: user.address, data: await exchange.getExchangeAccount(user.address) }
-    markedCounter++
   }
-  try {
-    console.log(a.length)
-    await Promise.all(a)
-  } catch (error) {
-    console.log(error)
-  }
+
   console.log(blue(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`))
   return atRisk
 }
