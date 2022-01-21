@@ -109,6 +109,7 @@ const main = async () => {
       )
       xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     }
+    console.log(toLiquidate.length)
     await Promise.all(toLiquidate)
     xUSDAccount = await xUSDToken.getOrCreateAssociatedAccountInfo(wallet.publicKey)
     console.log('Finished checking')
