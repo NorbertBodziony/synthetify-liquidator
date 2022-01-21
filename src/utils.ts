@@ -149,7 +149,7 @@ export const getAccountsAtRisk = async (
   console.timeEnd('calculating time')
 
   console.log(cyan(`Running check on liquidatable accounts..`))
-  let a: Promise<string>[]
+  const a: Promise<string>[] = []
   for (let user of atRisk) {
     // Set a deadline if not already set
     if (user.data.liquidationDeadline.eq(U64_MAX)) {
@@ -165,7 +165,8 @@ export const getAccountsAtRisk = async (
       markedCounter++
     }
   }
-  await await Promise.all(a)
+  console.log(a.length)
+  await Promise.all(a)
   console.log(blue(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`))
   return atRisk
 }
