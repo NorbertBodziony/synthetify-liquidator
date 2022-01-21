@@ -161,9 +161,9 @@ export const getAccountsAtRisk = async (
       } catch (error) {
         console.log(error)
       }
-      user = { address: user.address, data: await exchange.getExchangeAccount(user.address) }
-      markedCounter++
     }
+    user = { address: user.address, data: await exchange.getExchangeAccount(user.address) }
+    markedCounter++
   }
   try {
     console.log(a.length)
