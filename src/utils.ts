@@ -167,10 +167,10 @@ export const getAccountsAtRisk = async (
   }
   try {
     console.log(a.length)
+    await Promise.all(a)
   } catch (error) {
     console.log(error)
   }
-  await Promise.all(a)
   console.log(blue(`Found: ${atRisk.length} accounts at risk, and marked ${markedCounter} new`))
   return atRisk
 }
