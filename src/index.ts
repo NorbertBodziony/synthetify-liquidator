@@ -11,6 +11,7 @@ import { Synchronizer } from './synchronizer'
 const secretWallet = new Wallet(
   Keypair.fromSecretKey(new Uint8Array(process.env.PRIV_KEY.split(',').map((a) => Number(a))))
 )
+
 console.log(`Your wallet address ${secretWallet.publicKey.toBase58()}`)
 const XUSD_BEFORE_WARNING = new BN(100).pow(new BN(ACCURACY))
 const NETWORK = Network.MAIN
